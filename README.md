@@ -19,13 +19,5 @@ Built using **Python, Streamlit, FastAPI, scikit-learn, and Plotly**.
 - **Backend/API:** FastAPI + Uvicorn  
 - **ML/Analytics:** scikit-learn, pandas, numpy  
 - **Persistence:** CSV log files  
-- **Deployment:** Localhost (can be extended to cloud)  
-
----
-
-├── predictive_maintenance_app.py    # Main Streamlit + FastAPI app
-├── Engine_model.pkl                 # Trained ML model
-├── Engine_failure_features_name.pkl # Feature names used in training
-├── engine_failure_features.csv      # Dataset
-├── maintenance_log.csv              # Auto-generated logs
-└── README.md                        # Project documentation
+- **Deployment:** Localhost (can be extended to cloud)
+- 
