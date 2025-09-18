@@ -23,9 +23,9 @@ Built using **Python, Streamlit, FastAPI, scikit-learn, and Plotly**.
 
 ---
 
-## 🚀 Getting Started
-
-### 1. Clone Repo
-```bash
-git clone https://github.com/yourusername/predictive-maintenance-app.git
-cd predictive-maintenance-app
+├── predictive_maintenance_app.py    # Main Streamlit + FastAPI app
+├── Engine_model.pkl                 # Trained ML model
+├── Engine_failure_features_name.pkl # Feature names used in training
+├── engine_failure_features.csv      # Dataset
+├── maintenance_log.csv              # Auto-generated logs
+└── README.md                        # Project documentation
