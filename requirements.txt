@@ -7,3 +7,4 @@ requests
 fastapi
 uvicorn
 plotly
+scikit-learn==1.6.1
