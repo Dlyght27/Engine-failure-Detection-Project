@@ -1,17 +1,13 @@
 # predictive_maintenance_app.py
 import random
 import math
-import threading
 import time
-import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
 import joblib
 import os
 from sklearn.metrics.pairwise import euclidean_distances
-from fastapi import FastAPI
-import uvicorn
 import plotly.express as px
 
 # ==============================
@@ -28,64 +24,66 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================
-# FASTAPI MOCK ENGINE TELEMETRY API
+# MOCK ENGINE TELEMETRY GENERATOR
 # ==============================
-api = FastAPI()
-engine_state = {"time": 0, "temperature": 25.0, "rpm": 800, "mode": "Idle"}
+class EngineSimulator:
+    def __init__(self):
+        self.time = 0
+        self.temperature = 25.0
+        self.rpm = 800
+        self.mode = "Idle"
+    
+    def get_telemetry(self):
+        self.time += 1
+        if self.time % 20 == 0:
+            self.mode = random.choice(["Idle", "Cruising", "Heavy Load"])
+        mode = self.mode
 
-@api.get("/telemetry")
-def get_telemetry():
-    engine_state["time"] += 1
-    if engine_state["time"] % 20 == 0:
-        engine_state["mode"] = random.choice(["Idle", "Cruising", "Heavy Load"])
-    mode = engine_state["mode"]
+        if mode == "Idle":
+            rpm = 800 + random.randint(-50, 50)
+        elif mode == "Cruising":
+            rpm = 2000 + int(200 * math.sin(self.time / 5)) + random.randint(-50, 50)
+        else:
+            rpm = 3000 + int(300 * math.sin(self.time / 4)) + random.randint(-100, 100)
+        self.rpm = max(700, rpm)
 
-    if mode == "Idle":
-        rpm = 800 + random.randint(-50, 50)
-    elif mode == "Cruising":
-        rpm = 2000 + int(200 * math.sin(engine_state["time"] / 5)) + random.randint(-50, 50)
-    else:
-        rpm = 3000 + int(300 * math.sin(engine_state["time"] / 4)) + random.randint(-100, 100)
-    engine_state["rpm"] = max(700, rpm)
+        if self.temperature < 90:
+            self.temperature += 0.5
+        else:
+            self.temperature += random.uniform(-0.2, 0.2)
 
-    if engine_state["temperature"] < 90:
-        engine_state["temperature"] += 0.5
-    else:
-        engine_state["temperature"] += random.uniform(-0.2, 0.2)
+        if mode == "Idle":
+            fuel_eff = random.uniform(10, 15)
+        elif mode == "Cruising":
+            fuel_eff = random.uniform(15, 20)
+        else:
+            fuel_eff = random.uniform(5, 10)
 
-    if mode == "Idle":
-        fuel_eff = random.uniform(10, 15)
-    elif mode == "Cruising":
-        fuel_eff = random.uniform(15, 20)
-    else:
-        fuel_eff = random.uniform(5, 10)
+        torque = round(self.rpm * 0.1 + random.uniform(-10, 10), 2)
+        power = round(torque * self.rpm / 9550, 2)
 
-    torque = round(engine_state["rpm"] * 0.1 + random.uniform(-10, 10), 2)
-    power = round(torque * engine_state["rpm"] / 9550, 2)
+        if mode == "Idle":
+            vib_x, vib_y, vib_z = random.uniform(0.1, 0.3), random.uniform(0.1, 0.3), random.uniform(0.2, 0.4)
+        elif mode == "Cruising":
+            vib_x, vib_y, vib_z = random.uniform(0.2, 0.5), random.uniform(0.2, 0.5), random.uniform(0.3, 0.6)
+        else:
+            vib_x, vib_y, vib_z = random.uniform(0.4, 0.8), random.uniform(0.4, 0.8), random.uniform(0.5, 1.2)
 
-    if mode == "Idle":
-        vib_x, vib_y, vib_z = random.uniform(0.1, 0.3), random.uniform(0.1, 0.3), random.uniform(0.2, 0.4)
-    elif mode == "Cruising":
-        vib_x, vib_y, vib_z = random.uniform(0.2, 0.5), random.uniform(0.2, 0.5), random.uniform(0.3, 0.6)
-    else:
-        vib_x, vib_y, vib_z = random.uniform(0.4, 0.8), random.uniform(0.4, 0.8), random.uniform(0.5, 1.2)
+        return {
+            "Temperature": round(self.temperature, 2),
+            "RPM": self.rpm,
+            "Fuel_Efficiency": round(fuel_eff, 2),
+            "Torque": torque,
+            "Power_Output": power,
+            "Vibration_X": round(vib_x, 3),
+            "Vibration_Y": round(vib_y, 3),
+            "Vibration_Z": round(vib_z, 3),
+            "Operational_Mode": mode
+        }
 
-    return {
-        "Temperature": round(engine_state["temperature"], 2),
-        "RPM": engine_state["rpm"],
-        "Fuel_Efficiency": round(fuel_eff, 2),
-        "Torque": torque,
-        "Power_Output": power,
-        "Vibration_X": round(vib_x, 3),
-        "Vibration_Y": round(vib_y, 3),
-        "Vibration_Z": round(vib_z, 3),
-        "Operational_Mode": mode
-    }
-
-def run_api():
-    uvicorn.run(api, host="127.0.0.1", port=8000, log_level="error")
-
-threading.Thread(target=run_api, daemon=True).start()
+# Initialize simulator
+if 'simulator' not in st.session_state:
+    st.session_state.simulator = EngineSimulator()
 
 # ==============================
 # LOAD MODEL & DATA
@@ -116,7 +114,7 @@ st.markdown(
 st.image(
     'https://imgs.search.brave.com/pQHLIuNTynwY6ih87welTwyY_Z-AnxA2TIoIf0cfAiY/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9yaXNs/b25lLmNvbS93cC1j/b250ZW50L3VwbG9h/ZHMvMjAyMy8wNC9I/UEMxMDAtYmxvZy1m/ZWF0dXJlZC1pbWFn/ZS53ZWJw',
     caption="Automobile Engine",
-    use_container_width=True
+    width='stretch'
 )
 
 
@@ -202,7 +200,7 @@ def save_log(temp, rpm, fuel_eff, vib_x, vib_y, vib_z, torque, power_output,
 # MANUAL INPUT MODE
 # ==============================
 def manual_input():
-    st.subheader("✍️ Enter Engine Data")
+    st.subheader("✏️ Enter Engine Data")
     temp = st.number_input("Engine Temperature (°C)", 17.0, 120.0, 90.0, step=10.0)
     rpm = st.number_input("Engine RPM", 800.000, 4000.000, 2500.000, step=100.000)
     fuel_eff = st.number_input("Fuel Efficiency (km/l)", 4.0, 30.0, 22.0, step=2.0)
@@ -247,24 +245,15 @@ def simulation_mode():
             st.session_state.simulation_active = True
             st.session_state.stop_reason = ""
             st.session_state.history = []
+            st.session_state.simulator = EngineSimulator()  # Reset simulator
     else:
         st.session_state.simulation_active = run_simulation
 
     if st.session_state.simulation_active:
         placeholder = st.empty()
         for _ in range(1000):
-            try:
-                data = requests.get("http://127.0.0.1:8000/telemetry", timeout=2).json()
-            except:
-                data = {"Temperature": np.random.uniform(70,120),
-                        "RPM": np.random.randint(800,4000),
-                        "Fuel_Efficiency": np.random.uniform(5,20),
-                        "Torque": np.random.uniform(100,400),
-                        "Power_Output": np.random.uniform(50,300),
-                        "Vibration_X": np.random.uniform(0.1,1.0),
-                        "Vibration_Y": np.random.uniform(0.1,1.0),
-                        "Vibration_Z": np.random.uniform(0.1,1.5),
-                        "Operational_Mode": random.choice(["Idle","Cruising","Heavy Load"])}
+            # Get data from simulator instead of API
+            data = st.session_state.simulator.get_telemetry()
 
             temp, rpm, fuel_eff, torque, power_output = data["Temperature"], data["RPM"], data["Fuel_Efficiency"], data["Torque"], data["Power_Output"]
             vib_x, vib_y, vib_z, op_mode = data["Vibration_X"], data["Vibration_Y"], data["Vibration_Z"], data["Operational_Mode"]
